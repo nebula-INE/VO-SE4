@@ -54,7 +54,15 @@ async function decodeWavTo44kPcm16(arrayBuf: ArrayBuffer): Promise<Int16Array> {
 }
 
 export async function loadWasmEngine() {
-  if ((window as any).VoseEngineReady) return (window as any).Module;
+  if ((window as any).VoseWasmDisabled) return null;
+  if ((window as any).VoseEngineReady) {
+    const mod = (window as any).Module;
+    if (mod && mod.ABORT) {
+      (window as any).VoseWasmDisabled = true;
+      return null;
+    }
+    return mod;
+  }
 
   return new Promise((resolve, reject) => {
     (window as any).Module = {
@@ -62,13 +70,27 @@ export async function loadWasmEngine() {
         (window as any).VoseEngineReady = true;
         resolve((window as any).Module);
       },
+      onAbort: (reason: any) => {
+        console.warn('[VOSE WASM] Engine aborted, switching to Studio Offline Engine:', reason);
+        (window as any).VoseWasmDisabled = true;
+      },
       print: (text: string) => console.log('[VOSE WASM]', text),
-      printErr: (text: string) => console.error('[VOSE WASM ERR]', text)
+      printErr: (text: string) => {
+        if (text && (text.includes('Aborted') || text.includes('abort'))) {
+          (window as any).VoseWasmDisabled = true;
+          console.warn('[VOSE WASM Notice]', text);
+        } else {
+          console.warn('[VOSE WASM Log]', text);
+        }
+      }
     };
 
     const script = document.createElement('script');
     script.src = '/vose_core.js';
-    script.onerror = reject;
+    script.onerror = (e) => {
+      (window as any).VoseWasmDisabled = true;
+      reject(e);
+    };
     document.body.appendChild(script);
   });
 }
@@ -247,9 +269,18 @@ async function renderStudioOffline(notes: any[], tempo: number, voicebank: strin
 export async function renderWasm(rawNotes: any[], tempo: number, voicebank: string): Promise<string | null> {
   if (!rawNotes || rawNotes.length === 0) return null;
 
+  if ((window as any).VoseWasmDisabled) {
+    return await renderStudioOffline(rawNotes, tempo, voicebank);
+  }
+
   try {
     // Attempt WASM compilation & execute_render first
     const Module = await loadWasmEngine();
+    if (!Module || Module.ABORT || (window as any).VoseWasmDisabled) {
+      (window as any).VoseWasmDisabled = true;
+      return await renderStudioOffline(rawNotes, tempo, voicebank);
+    }
+
     const FRAME_PERIOD_MS = 5.0;
     const structSize = 44; // 32-bit WASM NoteEvent struct size
     const ptrsToFree: number[] = [];
@@ -332,14 +363,12 @@ export async function renderWasm(rawNotes: any[], tempo: number, voicebank: stri
 
             Module._load_embedded_resource(phonemePtr, dataPtr, pcm16.length);
           } else {
-            // [FIX] previously silent — decode failure or missing engine export
             console.warn(
               `[VOSE WASM] Could not register sample for alias="${n.lyric}" note#${i} ` +
               `(decoded ${pcm16.length} samples, _load_embedded_resource=${!!Module._load_embedded_resource}).`
             );
           }
         } else {
-          // [FIX] previously silent — surface the HTTP status so an alias mismatch is diagnosable
           console.warn(
             `[VOSE WASM] voicebank-sample fetch failed (HTTP ${res.status}) ` +
             `voicebank="${voicebank}" alias="${n.lyric}" note#${i} — this note will be silent.`
@@ -433,8 +462,18 @@ export async function renderWasm(rawNotes: any[], tempo: number, voicebank: stri
       const outputPathPtr = allocateUTF8(Module, outputPathStr);
       ptrsToFree.push(outputPathPtr);
 
-      // Execute rendering in WASM engine
-      Module._execute_render(notesPtr, timelineEvents.length, outputPathPtr, 0);
+      // Safely execute rendering in WASM engine
+      try {
+        if (Module._execute_render) {
+          Module._execute_render(notesPtr, timelineEvents.length, outputPathPtr, 0);
+        } else {
+          throw new Error("Module._execute_render is undefined");
+        }
+      } catch (renderErr) {
+        console.warn("[VOSE WASM] execute_render failed, switching to Studio Offline Engine:", renderErr);
+        (window as any).VoseWasmDisabled = true;
+        return await renderStudioOffline(rawNotes, tempo, voicebank);
+      }
 
       let wavData: Uint8Array | null = null;
       try {
@@ -442,17 +481,9 @@ export async function renderWasm(rawNotes: any[], tempo: number, voicebank: stri
       } catch (e) {}
 
       if (wavData && wavData.length > 500) {
-        // [FIX] Validate that audio isn't silence.
-        // The old check only scanned bytes 44..5000 (~57ms at 44.1kHz stereo). A UTAU
-        // project that starts with a rest/pickup silence would be scanned as "all zero"
-        // and wrongly discarded, forcing every render down to the lower-fidelity
-        // renderStudioOffline() fallback — which is what actually caused the perceived
-        // "poor audio quality". Now we sample across the *entire* buffer instead.
         let nonZero = 0;
         const dataStart = 44;
         const dataLen = wavData.length - dataStart;
-        // sample at most ~20000 points spread across the whole file, so this stays cheap
-        // even for long renders, but a leading silent region can no longer fool it.
         const step = Math.max(1, Math.floor(dataLen / 20000));
         for (let k = dataStart; k < wavData.length; k += step) {
           if (wavData[k] !== 0) {
@@ -467,7 +498,7 @@ export async function renderWasm(rawNotes: any[], tempo: number, voicebank: stri
         } else {
           console.warn(
             "[VOSE WASM] Rendered output is silent across the entire buffer " +
-            "(not just the start) — falling back to renderStudioOffline()."
+            "— falling back to renderStudioOffline()."
           );
         }
       } else {
@@ -477,16 +508,16 @@ export async function renderWasm(rawNotes: any[], tempo: number, voicebank: stri
         );
       }
     } finally {
-      Module._free(notesPtr);
+      try { Module._free(notesPtr); } catch (e) {}
       for (const ptr of ptrsToFree) {
         try { Module._free(ptr); } catch (e) {}
       }
     }
 
-    // Fallback renderer (lower fidelity — see renderStudioOffline() docstring)
     return await renderStudioOffline(rawNotes, tempo, voicebank);
   } catch (err) {
-    console.warn("[VOSE WASM] WASM render fallback triggered:", err);
+    (window as any).VoseWasmDisabled = true;
+    console.warn("[VOSE WASM] WASM render fallback triggered, switching to Studio Offline Engine:", err);
     return await renderStudioOffline(rawNotes, tempo, voicebank);
   }
 }

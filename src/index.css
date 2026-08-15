@@ -15,7 +15,15 @@
 }
 
 .touch-grid {
-  touch-action: none;
+  touch-action: pan-x pan-y;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Hardware accelerated transform utility */

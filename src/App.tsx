@@ -3,10 +3,10 @@ import {
   Play, Pause, Square, Music, Upload, Download, Settings, RefreshCw,
   Monitor, Cpu, Volume2, Sliders, Layers, Sparkles, FileText, CheckCircle2,
   AlertCircle, ChevronRight, AudioWaveform, Plus, Trash2, Edit3, HelpCircle, Loader2,
-  Activity, Zap, X, Library, DownloadCloud, HardDrive, Check, Search, FolderPlus, Star, ShieldAlert
+  Activity, Zap, X, Library, DownloadCloud, HardDrive, Check, Search, FolderPlus, Star, ShieldAlert, ZoomIn, ZoomOut, RotateCcw, Maximize2
 } from 'lucide-react';
 import { bufferToWav } from './utils/audioEncoder';
-import { parsePitchBend } from './utils/pitchCurve';
+import { parsePitchBend, msToTicks } from './utils/pitchCurve';
 import { renderWasm } from './wasmEngine';
 import PitchCurveOverlay from './components/PitchCurveOverlay';
 import PitchCurveMiniEditor from './components/PitchCurveMiniEditor';
@@ -110,6 +110,77 @@ export default function App() {
   const gridRef = useRef<HTMLDivElement>(null);
   const [clipboardNote, setClipboardNote] = useState<Note | null>(null);
 
+  // ピアノロール グリッドの拡大縮小 (Zoom) 状態
+  const [pianoRollZoomX, setPianoRollZoomX] = useState<number>(1.0); // 1.0 (100%) ~ 4.0 (400%)
+  const [pianoRollRowHeight, setPianoRollRowHeight] = useState<number>(28); // 20px ~ 64px
+  const keybedScrollRef = useRef<HTMLDivElement>(null);
+  const gridScrollRef = useRef<HTMLDivElement>(null);
+  const rulerScrollRef = useRef<HTMLDivElement>(null);
+  const pianoRollTouchRef = useRef<{ dist: number; initialZoomX: number; initialRowHeight: number } | null>(null);
+
+  const handlePianoRollScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (keybedScrollRef.current) {
+      keybedScrollRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+    if (rulerScrollRef.current) {
+      rulerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  };
+
+  const scrollPianoRollHorizontal = (amount: number) => {
+    if (gridScrollRef.current) {
+      gridScrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+    }
+  };
+
+  const scrollPianoRollToStart = () => {
+    if (gridScrollRef.current) {
+      gridScrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  };
+
+  const scrollPianoRollToPlayhead = () => {
+    if (gridScrollRef.current) {
+      const scrollWidth = gridScrollRef.current.scrollWidth;
+      const targetLeft = (currentTick / totalTicks) * scrollWidth - gridScrollRef.current.clientWidth / 2;
+      gridScrollRef.current.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+    }
+  };
+
+  const handlePianoRollTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      pianoRollTouchRef.current = {
+        dist,
+        initialZoomX: pianoRollZoomX,
+        initialRowHeight: pianoRollRowHeight,
+      };
+    }
+  };
+
+  const handlePianoRollTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && pianoRollTouchRef.current) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const ratio = currentDist / pianoRollTouchRef.current.dist;
+
+      const nextZoomX = Math.max(1.0, Math.min(4.0, Math.round(pianoRollTouchRef.current.initialZoomX * ratio * 10) / 10));
+      const nextRowHeight = Math.max(20, Math.min(64, Math.round(pianoRollTouchRef.current.initialRowHeight * ratio)));
+
+      setPianoRollZoomX(nextZoomX);
+      setPianoRollRowHeight(nextRowHeight);
+    }
+  };
+
+  const handlePianoRollTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) {
+      pianoRollTouchRef.current = null;
+    }
+  };
+
   // Keyboard Shortcuts for Editor
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -156,6 +227,37 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTick, setCurrentTick] = useState<number>(0);
   const playbackRef = useRef<number | null>(null);
+
+  // ノート・ノードの位置に合わせてタイムラインの最大小節数(メモリバー)を動的に拡張
+  const totalMeasures = React.useMemo(() => {
+    const DEFAULT_MEASURES = 8;
+    const TICKS_PER_MEASURE = 480;
+    let maxTick = DEFAULT_MEASURES * TICKS_PER_MEASURE;
+
+    notes.forEach((note) => {
+      // 1. ノート自体の右端
+      const noteEnd = note.tick + note.length;
+      if (noteEnd > maxTick) maxTick = noteEnd;
+
+      // 2. ノート内のピッチノードの右端
+      if (note.pbs) {
+        const pts = parsePitchBend(note.pbs, note.pbw, note.pby);
+        pts.forEach((p) => {
+          const nodeTicks = msToTicks(p.offsetMs, tempo || 120);
+          const nodeAbsTick = note.tick + nodeTicks;
+          if (nodeAbsTick > maxTick) maxTick = nodeAbsTick;
+        });
+      }
+    });
+
+    if (currentTick > maxTick) maxTick = currentTick;
+
+    // 余裕を持たせて2小節分先まで確保
+    const calculatedMeasures = Math.ceil((maxTick + TICKS_PER_MEASURE * 2) / TICKS_PER_MEASURE);
+    return Math.max(DEFAULT_MEASURES, calculatedMeasures);
+  }, [notes, tempo, currentTick]);
+
+  const totalTicks = totalMeasures * 480;
 
   // Voicebank State
   const selectedVoicebank = currentTrack?.voicebank || '';
@@ -1512,6 +1614,103 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center space-x-3">
+                  {/* Piano Roll Zoom Controls */}
+                  <div className="flex items-center space-x-2 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs">
+                    <span className="text-slate-400 text-[10px] font-bold">ロールズーム:</span>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => setPianoRollZoomX((prev) => Math.max(1.0, Math.round((prev - 0.25) * 100) / 100))}
+                        disabled={pianoRollZoomX <= 1.0}
+                        className="p-1 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded disabled:opacity-30"
+                        title="時間軸を縮小"
+                      >
+                        <ZoomOut className="w-3 h-3" />
+                      </button>
+                      <span className="font-mono text-cyan-400 font-bold min-w-[36px] text-center text-[11px]">
+                        {Math.round(pianoRollZoomX * 100)}%
+                      </span>
+                      <button
+                        onClick={() => setPianoRollZoomX((prev) => Math.min(4.0, Math.round((prev + 0.25) * 100) / 100))}
+                        disabled={pianoRollZoomX >= 4.0}
+                        className="p-1 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded disabled:opacity-30"
+                        title="時間軸を拡大"
+                      >
+                        <ZoomIn className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="w-px h-3 bg-slate-800" />
+
+                    <div className="flex items-center space-x-1">
+                      <span className="text-slate-500 text-[10px]">鍵盤高:</span>
+                      <button
+                        onClick={() => setPianoRollRowHeight((prev) => Math.max(20, prev - 4))}
+                        disabled={pianoRollRowHeight <= 20}
+                        className="p-1 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded text-[10px] font-bold disabled:opacity-30"
+                        title="鍵盤高さを縮小"
+                      >
+                        -
+                      </button>
+                      <span className="font-mono text-cyan-400 font-bold min-w-[28px] text-center text-[11px]">
+                        {pianoRollRowHeight}px
+                      </span>
+                      <button
+                        onClick={() => setPianoRollRowHeight((prev) => Math.min(64, prev + 4))}
+                        disabled={pianoRollRowHeight >= 64}
+                        className="p-1 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded text-[10px] font-bold disabled:opacity-30"
+                        title="鍵盤高さを拡大"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setPianoRollZoomX(1.0);
+                        setPianoRollRowHeight(28);
+                      }}
+                      className="p-1 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded"
+                      title="ズームリセット"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                    </button>
+
+                    <div className="w-px h-3 bg-slate-800" />
+
+                    {/* Horizontal Scroll Quick Buttons */}
+                    <div className="flex items-center space-x-1">
+                      <span className="text-slate-500 text-[10px] hidden sm:inline">横移動:</span>
+                      <button
+                        onClick={scrollPianoRollToStart}
+                        className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded text-[10px] font-mono"
+                        title="曲頭へスクロール"
+                      >
+                        ◀◀
+                      </button>
+                      <button
+                        onClick={() => scrollPianoRollHorizontal(-300)}
+                        className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded text-[10px] font-mono"
+                        title="左へスクロール"
+                      >
+                        ◀
+                      </button>
+                      <button
+                        onClick={() => scrollPianoRollHorizontal(300)}
+                        className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded text-[10px] font-mono"
+                        title="右へスクロール"
+                      >
+                        ▶
+                      </button>
+                      <button
+                        onClick={scrollPianoRollToPlayhead}
+                        className="px-1.5 py-0.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-800 text-cyan-300 rounded text-[10px]"
+                        title="再生バー位置へスクロール"
+                      >
+                        📍
+                      </button>
+                    </div>
+                  </div>
+
                   <button
                     onClick={addNote}
                     className="flex items-center space-x-1 text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2.5 py-1.5 rounded border border-slate-700 transition"
@@ -1567,7 +1766,7 @@ export default function App() {
                   <div className="h-7 border-b border-slate-800 bg-slate-950 text-[10px] text-slate-500 flex items-center justify-center font-mono shrink-0">
                     Measure
                   </div>
-                  <div className="flex-1 overflow-y-auto flex flex-col">
+                  <div className="flex-1 overflow-y-auto flex flex-col" ref={keybedScrollRef}>
                     {Array.from({ length: 37 }).map((_, i) => {
                       const midiNum = 84 - i; // C6 (84) down to C3 (48)
                       const isBlack = isBlackKey(midiNum);
@@ -1576,7 +1775,8 @@ export default function App() {
                           key={midiNum}
                           onClick={() => playVocalNote(midiNum, selectedNote?.lyric || 'あ', 0.5)}
                           onTouchStart={() => playVocalNote(midiNum, selectedNote?.lyric || 'あ', 0.5)}
-                          className={`h-7 border-b flex items-center justify-between px-2 text-[10px] font-mono cursor-pointer transition select-none active:bg-cyan-600 ${
+                          style={{ height: `${pianoRollRowHeight}px` }}
+                          className={`border-b flex items-center justify-between px-2 text-[10px] font-mono cursor-pointer transition select-none active:bg-cyan-600 shrink-0 ${
                             isBlack
                               ? 'bg-slate-950 text-slate-400 border-slate-900 hover:bg-slate-800'
                               : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
@@ -1594,17 +1794,24 @@ export default function App() {
                 <div className="flex-1 flex flex-col overflow-hidden relative">
                   {/* Timeline Ruler Header Bar */}
                   <div
-                    className="h-7 bg-slate-900 border-b border-slate-800 relative cursor-pointer overflow-hidden flex items-center shrink-0 select-none"
+                    ref={rulerScrollRef}
+                    className="h-7 bg-slate-900 border-b border-slate-800 relative cursor-pointer overflow-x-auto overflow-y-hidden scrollbar-none flex items-center shrink-0 select-none"
                     onClick={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       const clickX = e.clientX - rect.left;
                       const pct = Math.max(0, Math.min(1, clickX / rect.width));
-                      setCurrentTick(pct * 3840);
+                      setCurrentTick(pct * totalTicks);
                     }}
                   >
                     {/* Ruler measure markers */}
-                    <div className="absolute inset-0 flex">
-                      {Array.from({ length: 8 }).map((_, mIdx) => (
+                    <div
+                      className="absolute inset-0 flex h-full"
+                      style={{
+                        width: `${Math.round(pianoRollZoomX * 100)}%`,
+                        minWidth: '1000px',
+                      }}
+                    >
+                      {Array.from({ length: totalMeasures }).map((_, mIdx) => (
                         <div key={mIdx} className="flex-1 border-r border-slate-700/60 flex items-center justify-between px-1 text-[10px] text-slate-400 font-mono">
                           <span className="font-bold text-cyan-400">{mIdx + 1}</span>
                           <span className="text-[9px] text-slate-600">.</span>
@@ -1617,7 +1824,7 @@ export default function App() {
                     {/* Ruler Playhead Handle */}
                     <div
                       className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none"
-                      style={{ left: `${(currentTick / 3840) * 100}%` }}
+                      style={{ left: `${(currentTick / totalTicks) * 100 * pianoRollZoomX}%` }}
                     >
                       <div className="w-3 h-3 bg-red-500 rounded-b -ml-[5px] shadow flex items-center justify-center">
                         <div className="w-1 h-1 bg-white rounded-full" />
@@ -1627,6 +1834,11 @@ export default function App() {
 
                   {/* Grid Timeline Canvas */}
                   <div
+                    ref={gridScrollRef}
+                    onScroll={handlePianoRollScroll}
+                    onTouchStart={handlePianoRollTouchStart}
+                    onTouchMove={handlePianoRollTouchMove}
+                    onTouchEnd={handlePianoRollTouchEnd}
                     className="flex-1 relative overflow-auto bg-slate-950 touch-grid no-scroll-chain"
                     onClick={(e) => {
                       // Check if click was on grid background (not on a note)
@@ -1634,38 +1846,76 @@ export default function App() {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const clickX = e.clientX - rect.left;
                         const pct = Math.max(0, Math.min(1, clickX / rect.width));
-                        setCurrentTick(pct * 3840);
+                        setCurrentTick(pct * totalTicks);
                       }
                     }}
                   >
-                    {/* Playhead indicator bar */}
+                    {/* Grid wrapper for zoom scaling */}
                     <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-30 pointer-events-none shadow-sm shadow-red-500"
                       style={{
-                        left: `${(currentTick / 3840) * 100}%`
+                        width: `${Math.round(pianoRollZoomX * 100)}%`,
+                        minWidth: '1000px',
+                        height: `${37 * pianoRollRowHeight}px`,
+                      }}
+                      className="relative cursor-crosshair"
+                      ref={gridRef}
+                      onDoubleClick={(e) => {
+                        if (!gridRef.current) return;
+                        const rect = gridRef.current.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        const clickY = e.clientY - rect.top;
+
+                        const pct = Math.max(0, Math.min(1, clickX / rect.width));
+                        const rawTick = pct * totalTicks;
+                        const tick = Math.round(rawTick / 240) * 240;
+
+                        const rowIdx = Math.floor(clickY / pianoRollRowHeight);
+                        const noteNum = Math.max(48, Math.min(84, 84 - rowIdx));
+
+                        const newNote: Note = {
+                          id: String(Date.now()),
+                          lyric: 'あ',
+                          noteNum,
+                          tick,
+                          length: 480,
+                          intensity: 120,
+                          flags: '',
+                          pbs: '0;0',
+                          pbw: '50',
+                          pby: '0',
+                        };
+                        setNotes((prev) => [...prev, newNote]);
+                        setSelectedNoteId(newNote.id);
+                        playVocalNote(noteNum, 'あ', 0.4);
                       }}
                     >
-                      <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-[4px] -mt-1 shadow" />
-                    </div>
+                      {/* Playhead indicator bar */}
+                      <div
+                        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-30 pointer-events-none shadow-sm shadow-red-500"
+                        style={{
+                          left: `${(currentTick / totalTicks) * 100}%`
+                        }}
+                      >
+                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-[4px] -mt-1 shadow" />
+                      </div>
 
-                    {/* Grid lines background */}
-                    <div className="absolute inset-0 flex">
-                      {Array.from({ length: 8 }).map((_, bIdx) => (
-                        <div key={bIdx} className="flex-1 border-r border-slate-800/80 flex">
-                          <div className="flex-1 border-r border-slate-900/40" />
-                          <div className="flex-1 border-r border-slate-900/40" />
-                          <div className="flex-1 border-r border-slate-900/40" />
-                        </div>
-                      ))}
-                    </div>
+                      {/* Grid lines background */}
+                      <div className="absolute inset-0 flex">
+                        {Array.from({ length: totalMeasures }).map((_, bIdx) => (
+                          <div key={bIdx} className="flex-1 border-r border-slate-800/80 flex">
+                            <div className="flex-1 border-r border-slate-900/40" />
+                            <div className="flex-1 border-r border-slate-900/40" />
+                            <div className="flex-1 border-r border-slate-900/40" />
+                          </div>
+                        ))}
+                      </div>
 
-                    {/* Note Blocks */}
-                    <div className="relative w-full h-[1036px]" ref={gridRef}>
+                      {/* Note Blocks */}
                       {notes.map((note) => {
                         const rowIdx = 84 - note.noteNum;
-                        const topPos = rowIdx * 28;
-                        const leftPct = (note.tick / 3840) * 100;
-                        const widthPct = (note.length / 3840) * 100;
+                        const topPos = rowIdx * pianoRollRowHeight;
+                        const leftPct = (note.tick / totalTicks) * 100;
+                        const widthPct = (note.length / totalTicks) * 100;
                         const isSelected = note.id === selectedNoteId;
 
                         const handleNotePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1689,11 +1939,11 @@ export default function App() {
                             const deltaX = moveEvent.clientX - startX;
                             const deltaY = moveEvent.clientY - startY;
 
-                            const ticksPerPx = 3840 / rect.width;
+                            const ticksPerPx = totalTicks / rect.width;
                             let newTick = Math.max(0, startTick + deltaX * ticksPerPx);
                             newTick = Math.round(newTick / 60) * 60; // Snap to 32nd notes
 
-                            const noteDelta = Math.round(deltaY / 28);
+                            const noteDelta = Math.round(deltaY / pianoRollRowHeight);
                             const newNoteNum = Math.min(84, Math.max(48, startNoteNum - noteDelta));
 
                             setNotes(prev => prev.map(n => n.id === note.id ? { ...n, tick: newTick, noteNum: newNoteNum } : n));
@@ -1721,7 +1971,7 @@ export default function App() {
                             const rect = gridRef.current.getBoundingClientRect();
                             const deltaX = moveEvent.clientX - startX;
 
-                            const ticksPerPx = 3840 / rect.width;
+                            const ticksPerPx = totalTicks / rect.width;
                             let newLength = Math.max(60, startLength + deltaX * ticksPerPx);
                             newLength = Math.round(newLength / 60) * 60; // Snap length
 
@@ -1741,13 +1991,14 @@ export default function App() {
                           <div
                             key={note.id}
                             onPointerDown={handleNotePointerDown}
-                            className={`absolute h-6 rounded-md px-2 flex items-center justify-between text-xs font-bold cursor-pointer transition shadow border gpu-accelerated group ${
+                            className={`absolute rounded-md px-2 flex items-center justify-between text-xs font-bold cursor-pointer transition shadow border gpu-accelerated group ${
                               isSelected
                                 ? 'bg-cyan-500 text-slate-950 border-white ring-2 ring-cyan-400/50 z-20'
                                 : 'bg-indigo-600/90 hover:bg-indigo-500 text-white border-indigo-400/30 z-10'
                             }`}
                             style={{
                               top: `${topPos + 1}px`,
+                              height: `${Math.max(16, pianoRollRowHeight - 2)}px`,
                               left: `${leftPct}%`,
                               width: `${Math.max(widthPct, 2)}%`
                             }}
@@ -1764,11 +2015,21 @@ export default function App() {
                         );
                       })}
 
-                      {/* ピッチカーブオーバーレイ(読み取り専用): ノートと同じ座標系で重ねて描画 */}
+                      {/* インタラクティブ・ピッチカーブオーバーレイ */}
                       <PitchCurveOverlay
                         notes={notes}
                         selectedNoteId={selectedNoteId}
                         tempo={tempo}
+                        gridRef={gridRef}
+                        gridHeightPx={37 * pianoRollRowHeight}
+                        totalTicks={totalTicks}
+                        rowHeightPx={pianoRollRowHeight}
+                        onUpdateNote={(noteId, pitchData) =>
+                          setNotes((prev) =>
+                            prev.map((n) => (n.id === noteId ? { ...n, ...pitchData } : n))
+                          )
+                        }
+                        onSelectNote={setSelectedNoteId}
                       />
                     </div>
                   </div>
