@@ -7,6 +7,13 @@ import {
 } from 'lucide-react';
 import { bufferToWav } from './utils/audioEncoder';
 import { parsePitchBend, msToTicks } from './utils/pitchCurve';
+import {
+  parseUstText, exportUstText,
+  parseVsqxXml, exportVsqxXml,
+  parseSvpJson, exportSvpJson,
+  parseMidiBuffer, exportMidiBuffer,
+  ProjectData
+} from './utils/formatConverter';
 import { renderWasm } from './wasmEngine';
 import PitchCurveOverlay from './components/PitchCurveOverlay';
 import PitchCurveMiniEditor from './components/PitchCurveMiniEditor';
@@ -1111,59 +1118,125 @@ export default function App() {
     }
   };
 
-  // UST File Import Handler
-  const handleUstFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Universal Project File Import Handler (.ust, .vsqx, .svp, .mid/.midi)
+  const handleProjectFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const text = await file.text();
+    const fileName = file.name.toLowerCase();
+
     try {
-      const res = await fetch('/api/py/parse-ust', {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: text
-      });
-      const json = await res.json();
-      if (json.success && json.data) {
-        const p: UstProjectData = json.data;
-        if (p.tempo) setTempo(p.tempo);
-        if (p.projectName) setProjectName(p.projectName);
-        if (p.notes && p.notes.length > 0) {
-          const parsedNotes: Note[] = p.notes.map((n: any, idx: number) => ({
-            id: String(idx + 1),
-            lyric: n.lyric || 'あ',
-            noteNum: n.note_num || 60,
-            tick: n.tick || idx * 480,
-            length: n.length || 480,
-            intensity: n.intensity || 120,
-            flags: n.flags || '',
-            pbs: n.pbs || '0;0',
-            pbw: n.pbw || '50',
-            pby: n.pby || '0'
-          }));
-          setNotes(parsedNotes);
-          if (parsedNotes.length > 0) setSelectedNoteId(parsedNotes[0].id);
-        }
+      let pData: ProjectData | null = null;
+
+      if (fileName.endsWith('.mid') || fileName.endsWith('.midi')) {
+        const buffer = await file.arrayBuffer();
+        pData = parseMidiBuffer(buffer);
       } else {
-        alert('UST解析エラー: ' + (json.error || '不明なエラー'));
+        const text = await file.text();
+        if (fileName.endsWith('.svp') || (text.trim().startsWith('{') && text.includes('tracks'))) {
+          pData = parseSvpJson(text);
+        } else if (fileName.endsWith('.vsqx') || text.includes('<vsq3>') || text.includes('<vsq4>') || text.includes('vocaloid')) {
+          pData = parseVsqxXml(text);
+        } else if (fileName.endsWith('.ust') || text.includes('[#VERSION]') || text.includes('[#SETTING]')) {
+          pData = parseUstText(text);
+        } else {
+          pData = parseUstText(text);
+        }
+      }
+
+      if (pData && pData.notes && pData.notes.length > 0) {
+        if (pData.tempo) setTempo(pData.tempo);
+        if (pData.projectName) setProjectName(pData.projectName);
+
+        const formattedNotes: Note[] = pData.notes.map((n, idx) => ({
+          ...n,
+          id: String(idx + 1)
+        }));
+
+        setNotes(formattedNotes);
+        if (formattedNotes.length > 0) setSelectedNoteId(formattedNotes[0].id);
+
+        setToast({
+          type: 'success',
+          title: 'プロジェクト読み込み完了',
+          desc: `「${file.name}」を正常ロードしました (ノート数: ${formattedNotes.length}件 / BPM: ${pData.tempo || tempo})`
+        });
+      } else {
+        setToast({
+          type: 'error',
+          title: '読み込みエラー',
+          desc: 'ファイル内に有効なノートデータが見つかりませんでした。'
+        });
       }
     } catch (err: any) {
-      alert('USTファイル読み込みに失敗しました: ' + err.message);
+      setToast({
+        type: 'error',
+        title: '解析エラー',
+        desc: `ファイルの読み込みに失敗しました: ${err.message}`
+      });
+    } finally {
+      if (event.target) event.target.value = '';
     }
   };
 
-  // Export UST File
-  const handleExportUst = () => {
-    let ustContent = `[#VERSION]\nUST Version 1.2\n[#SETTING]\nTempo=${tempo.toFixed(3)}\nProjectName=${projectName}\nVoicebank=${selectedVoicebank}\n`;
-    notes.forEach((n, idx) => {
-      const padIndex = String(idx).padStart(4, '0');
-      ustContent += `[#${padIndex}]\nLength=${n.length}\nLyric=${n.lyric}\nNoteNum=${n.noteNum}\nIntensity=${Math.round(n.intensity)}\nFlags=${n.flags}\nPBS=${n.pbs}\nPBW=${n.pbw}\nPBY=${n.pby}\n`;
-    });
-    const blob = new Blob([ustContent], { type: 'text/plain;charset=utf-8' });
+  // Universal Project Export Handler (.ust, .vsqx, .svp, .mid)
+  const handleExportProject = (format: 'ust' | 'vsqx' | 'svp' | 'midi') => {
+    if (notes.length === 0) {
+      setToast({
+        type: 'error',
+        title: '書き出しエラー',
+        desc: '書き出すノートが存在しません。'
+      });
+      return;
+    }
+
+    const pData: ProjectData = {
+      projectName: projectName || 'VO-SE_Song',
+      tempo,
+      voicebank: selectedVoicebank,
+      notes
+    };
+
+    const safeName = (projectName || 'VO-SE_Song').replace(/\s+/g, '_');
+
+    try {
+      if (format === 'ust') {
+        const text = exportUstText(pData);
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        downloadBlob(blob, `${safeName}.ust`);
+      } else if (format === 'vsqx') {
+        const xml = exportVsqxXml(pData);
+        const blob = new Blob([xml], { type: 'text/xml;charset=utf-8' });
+        downloadBlob(blob, `${safeName}.vsqx`);
+      } else if (format === 'svp') {
+        const json = exportSvpJson(pData);
+        const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+        downloadBlob(blob, `${safeName}.svp`);
+      } else if (format === 'midi') {
+        const buffer = exportMidiBuffer(pData);
+        const blob = new Blob([buffer], { type: 'audio/midi' });
+        downloadBlob(blob, `${safeName}.mid`);
+      }
+
+      setToast({
+        type: 'success',
+        title: '書き出し完了',
+        desc: `${safeName}.${format === 'midi' ? 'mid' : format} ファイルを出力しました。`
+      });
+    } catch (err: any) {
+      setToast({
+        type: 'error',
+        title: '書き出しエラー',
+        desc: `ファイルの生成に失敗しました: ${err.message}`
+      });
+    }
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${projectName.replace(/\s+/g, '_')}.ust`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1455,25 +1528,42 @@ export default function App() {
 
         {/* Right Toolbar Actions */}
         <div className="flex items-center space-x-2">
-          <label className="flex items-center space-x-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-md cursor-pointer transition border border-slate-700">
-            <Upload className="w-3.5 h-3.5" />
-            <span>UST/MIDI 読み込み</span>
-            <input type="file" accept=".ust,.mid,.midi" onChange={handleUstFileUpload} className="hidden" />
+          {/* Universal Project Import */}
+          <label className="flex items-center space-x-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-md cursor-pointer transition border border-slate-700" title="対応フォーマット: UST, VSQX, SVP, Standard MIDI">
+            <Upload className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="font-medium">インポート (UST/VSQX/SVP/MIDI)</span>
+            <input type="file" accept=".ust,.vsqx,.svp,.mid,.midi,.xml,.json" onChange={handleProjectFileUpload} className="hidden" />
           </label>
 
+          {/* UTAU Voicebank Zip Upload */}
           <label className="flex items-center space-x-1.5 text-xs bg-cyan-700 hover:bg-cyan-600 text-white font-medium px-3 py-1.5 rounded-md cursor-pointer transition border border-cyan-600 shadow-sm shadow-cyan-900/30">
             {isUploadingVb ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
             <span>{isUploadingVb ? '音源解凍中...' : 'UTAU音源(.zip) 追加'}</span>
             <input type="file" accept=".zip,application/zip,application/x-zip,application/x-zip-compressed,multipart/x-zip,application/octet-stream" onChange={handleVoicebankZipUpload} disabled={isUploadingVb} className="hidden" />
           </label>
 
-          <button
-            onClick={handleExportUst}
-            className="flex items-center space-x-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-1.5 rounded-md transition border border-slate-700"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>UST 書き出し</span>
-          </button>
+          {/* Export Format Select & Download Button */}
+          <div className="flex items-center space-x-1 bg-slate-800 border border-slate-700 rounded-md px-2 py-1">
+            <Download className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="text-[11px] text-slate-400 font-medium">書き出し:</span>
+            <select
+              onChange={(e) => {
+                const val = e.target.value as 'ust' | 'vsqx' | 'svp' | 'midi';
+                if (val) {
+                  handleExportProject(val);
+                  e.target.value = ''; // Reset select
+                }
+              }}
+              defaultValue=""
+              className="bg-slate-950 text-cyan-300 text-xs font-bold rounded px-1.5 py-0.5 border border-slate-700 cursor-pointer focus:outline-none focus:border-cyan-500"
+            >
+              <option value="" disabled>形式を選択...</option>
+              <option value="ust">.ust (UTAU Project)</option>
+              <option value="vsqx">.vsqx (VOCALOID 3/4)</option>
+              <option value="svp">.svp (Synthesizer V)</option>
+              <option value="midi">.mid (Standard MIDI)</option>
+            </select>
+          </div>
 
           <button
             onClick={handleExportWav}
