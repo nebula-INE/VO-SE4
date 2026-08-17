@@ -905,9 +905,9 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
     // Overwrite or create clean C4 vocal sample
     fs.writeFileSync(wavPath, createVocalWavBuffer(baseC4Freq, v));
 
-    otoLines.push(`${wavName}=${v},20,120,50,40,20`);
+    otoLines.push(`${wavName}=${v},20,120,-50,40,20`);
     vcvPrefixes.forEach(p => {
-      otoLines.push(`${wavName}=${p}${v},20,120,50,40,20`);
+      otoLines.push(`${wavName}=${p}${v},20,120,-50,40,20`);
     });
   });
 
@@ -1907,10 +1907,9 @@ app.get('/api/py/run-tests', (req, res) => {
 
 // Vite Middleware setup for Web Frontend
 async function setupVite() {
-  if (fs.existsSync(path.join(__dirname, 'dist', 'index.html'))) {
+  if (process.env.NODE_ENV === 'production' && fs.existsSync(path.join(__dirname, 'dist'))) {
     app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api')) return next();
+    app.get('*', (req, res) => {
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   } else {
