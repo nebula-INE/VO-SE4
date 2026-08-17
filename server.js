@@ -575,7 +575,7 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
     let consonantDur = 0.0;
 
     // Vowel formant detection
-    if (l.includes('い') || l.includes('i') || l.includes('き') || l.includes('し') || l.includes('ち') || l.includes('に') || l.includes('ひ') || l.includes('み') || l.includes('り')) {
+    if (l.includes('い') || l.includes('i') || l.includes('き') || l.includes('し') || l.includes('ち') || l.includes('に') || l.includes('ひ') || l.includes('み') || l.includes('り') || l.includes('ぎ') || l.includes('じ') || l.includes('ぢ') || l.includes('び') || l.includes('ぴ')) {
       formants = [
         { f: 270, bw: 45, g: 1.0 },
         { f: 2350, bw: 90, g: 0.70 },
@@ -583,7 +583,7 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
         { f: 3850, bw: 170, g: 0.25 },
         { f: 4700, bw: 240, g: 0.15 }
       ];
-    } else if (l.includes('う') || l.includes('u') || l.includes('く') || l.includes('す') || l.includes('つ') || l.includes('ぬ') || l.includes('ふ') || l.includes('む') || l.includes('ゆ') || l.includes('る')) {
+    } else if (l.includes('う') || l.includes('u') || l.includes('く') || l.includes('す') || l.includes('つ') || l.includes('ぬ') || l.includes('ふ') || l.includes('む') || l.includes('ゆ') || l.includes('る') || l.includes('ぐ') || l.includes('ず') || l.includes('づ') || l.includes('ぶ') || l.includes('ぷ')) {
       formants = [
         { f: 340, bw: 55, g: 1.0 },
         { f: 1200, bw: 80, g: 0.60 },
@@ -591,7 +591,7 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
         { f: 3650, bw: 160, g: 0.22 },
         { f: 4600, bw: 240, g: 0.14 }
       ];
-    } else if (l.includes('え') || l.includes('e') || l.includes('け') || l.includes('せ') || l.includes('て') || l.includes('ね') || l.includes('へ') || l.includes('め') || l.includes('れ')) {
+    } else if (l.includes('え') || l.includes('e') || l.includes('け') || l.includes('せ') || l.includes('て') || l.includes('ね') || l.includes('へ') || l.includes('め') || l.includes('れ') || l.includes('げ') || l.includes('ぜ') || l.includes('で') || l.includes('べ') || l.includes('ぺ')) {
       formants = [
         { f: 490, bw: 60, g: 1.0 },
         { f: 1920, bw: 85, g: 0.68 },
@@ -599,7 +599,7 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
         { f: 3750, bw: 165, g: 0.25 },
         { f: 4700, bw: 240, g: 0.15 }
       ];
-    } else if (l.includes('お') || l.includes('o') || l.includes('こ') || l.includes('そ') || l.includes('と') || l.includes('の') || l.includes('ほ') || l.includes('も') || l.includes('よ') || l.includes('ろ') || l.includes('を')) {
+    } else if (l.includes('お') || l.includes('o') || l.includes('こ') || l.includes('そ') || l.includes('と') || l.includes('の') || l.includes('ほ') || l.includes('も') || l.includes('よ') || l.includes('ろ') || l.includes('を') || l.includes('ご') || l.includes('ぞ') || l.includes('ど') || l.includes('ぼ') || l.includes('ぽ')) {
       formants = [
         { f: 460, bw: 60, g: 1.0 },
         { f: 850, bw: 75, g: 0.70 },
@@ -617,16 +617,26 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
       ];
     }
 
-    // Consonant detection
-    if (l.includes('か') || l.includes('き') || l.includes('く') || l.includes('け') || l.includes('こ') || l.includes('ka') || l.includes('ki') || l.includes('ku') || l.includes('ke') || l.includes('ko') || l.includes('が') || l.includes('ぎ') || l.includes('ぐ') || l.includes('げ') || l.includes('ご')) {
+    // Accurate consonant detection distinguishing voiced (濁音) vs unvoiced (清音)
+    if (l.includes('が') || l.includes('ぎ') || l.includes('ぐ') || l.includes('げ') || l.includes('ご') || l.includes('ga') || l.includes('gi') || l.includes('gu') || l.includes('ge') || l.includes('go')) {
+      consonantType = 'stop_g'; consonantDur = 0.040;
+    } else if (l.includes('ざ') || l.includes('じ') || l.includes('ず') || l.includes('ぜ') || l.includes('ぞ') || l.includes('za') || l.includes('ji') || l.includes('zu') || l.includes('ze') || l.includes('zo')) {
+      consonantType = 'fric_z'; consonantDur = 0.065;
+    } else if (l.includes('だ') || l.includes('ぢ') || l.includes('づ') || l.includes('で') || l.includes('ど') || l.includes('da') || l.includes('di') || l.includes('du') || l.includes('de') || l.includes('do')) {
+      consonantType = 'stop_d'; consonantDur = 0.038;
+    } else if (l.includes('ば') || l.includes('び') || l.includes('ぶ') || l.includes('べ') || l.includes('ぼ') || l.includes('ba') || l.includes('bi') || l.includes('bu') || l.includes('be') || l.includes('bo')) {
+      consonantType = 'stop_b'; consonantDur = 0.038;
+    } else if (l.includes('ぱ') || l.includes('ぴ') || l.includes('ぷ') || l.includes('ぺ') || l.includes('ぽ') || l.includes('pa') || l.includes('pi') || l.includes('pu') || l.includes('pe') || l.includes('po')) {
+      consonantType = 'stop_p'; consonantDur = 0.045;
+    } else if (l.includes('か') || l.includes('き') || l.includes('く') || l.includes('け') || l.includes('こ') || l.includes('ka') || l.includes('ki') || l.includes('ku') || l.includes('ke') || l.includes('ko')) {
       consonantType = 'stop_k'; consonantDur = 0.045;
-    } else if (l.includes('さ') || l.includes('し') || l.includes('す') || l.includes('せ') || l.includes('そ') || l.includes('sa') || l.includes('shi') || l.includes('su') || l.includes('se') || l.includes('so') || l.includes('ざ') || l.includes('じ') || l.includes('ず') || l.includes('ぜ') || l.includes('ぞ')) {
-      consonantType = 'fric_s'; consonantDur = 0.075;
-    } else if (l.includes('た') || l.includes('ち') || l.includes('つ') || l.includes('て') || l.includes('と') || l.includes('ta') || l.includes('chi') || l.includes('tsu') || l.includes('te') || l.includes('to') || l.includes('だ') || l.includes('ぢ') || l.includes('づ') || l.includes('で') || l.includes('ど')) {
+    } else if (l.includes('さ') || l.includes('し') || l.includes('す') || l.includes('せ') || l.includes('そ') || l.includes('sa') || l.includes('shi') || l.includes('su') || l.includes('se') || l.includes('so')) {
+      consonantType = 'fric_s'; consonantDur = 0.070;
+    } else if (l.includes('た') || l.includes('ち') || l.includes('つ') || l.includes('て') || l.includes('と') || l.includes('ta') || l.includes('chi') || l.includes('tsu') || l.includes('te') || l.includes('to')) {
       consonantType = 'stop_t'; consonantDur = 0.040;
     } else if (l.includes('な') || l.includes('に') || l.includes('ぬ') || l.includes('ね') || l.includes('の') || l.includes('na') || l.includes('ni') || l.includes('nu') || l.includes('ne') || l.includes('no')) {
       consonantType = 'nasal_n'; consonantDur = 0.055;
-    } else if (l.includes('は') || l.includes('ひ') || l.includes('ふ') || l.includes('へ') || l.includes('ほ') || l.includes('ha') || l.includes('hi') || l.includes('hu') || l.includes('he') || l.includes('ho') || l.includes('ば') || l.includes('び') || l.includes('ぶ') || l.includes('べ') || l.includes('ぼ') || l.includes('ぱ') || l.includes('ぴ') || l.includes('ぷ') || l.includes('ぺ') || l.includes('ぽ')) {
+    } else if (l.includes('は') || l.includes('ひ') || l.includes('ふ') || l.includes('へ') || l.includes('ほ') || l.includes('ha') || l.includes('hi') || l.includes('hu') || l.includes('he') || l.includes('ho')) {
       consonantType = 'fric_h'; consonantDur = 0.050;
     } else if (l.includes('ま') || l.includes('み') || l.includes('む') || l.includes('め') || l.includes('も') || l.includes('ma') || l.includes('mi') || l.includes('mu') || l.includes('me') || l.includes('mo')) {
       consonantType = 'nasal_m'; consonantDur = 0.055;
@@ -741,6 +751,21 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
           const sNoise = sibilantResonator.process(whiteNoise);
           const sEnv = (1 - cProg * 0.7);
           vocalSample = vocalSample * (cProg * 0.8) + sNoise * sEnv * 0.6;
+        } else if (consonantType === 'fric_z') {
+          // Voiced sibilant friction with glottal voicing (ざ/じ/ず/ぜ/ぞ)
+          const zNoise = sibilantResonator.process(whiteNoise);
+          const zEnv = (1 - cProg * 0.6);
+          vocalSample = vocalSample * (0.4 + 0.6 * cProg) + (glottalExcitation * 0.35 + zNoise * 0.32) * zEnv;
+        } else if (consonantType === 'stop_g') {
+          // Voiced velar stop with low-frequency voicing murmur + soft velar release (が/ぎ/ぐ/げ/ご)
+          if (cProg < 0.30) {
+            // Low-frequency voicing bar (voiced murmur)
+            vocalSample = glottalExcitation * 0.45;
+          } else {
+            const burstEnv = Math.exp(-(cProg - 0.30) * 11);
+            const gNoise = burstResonator.process(whiteNoise);
+            vocalSample = vocalSample * Math.min(1.0, (cProg - 0.30) * 2.5) + gNoise * burstEnv * 0.32;
+          }
         } else if (consonantType === 'stop_k') {
           // Silent closure then filtered oral cavity burst (か/き/く/け/こ)
           if (cProg < 0.25) {
@@ -750,6 +775,15 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
             const kNoise = burstResonator.process(whiteNoise);
             vocalSample = vocalSample * Math.min(1.0, (cProg - 0.25) * 2.5) + kNoise * burstEnv * 0.55;
           }
+        } else if (consonantType === 'stop_d') {
+          // Voiced alveolar stop (だ/ぢ/づ/で/ど)
+          if (cProg < 0.28) {
+            vocalSample = glottalExcitation * 0.40;
+          } else {
+            const burstEnv = Math.exp(-(cProg - 0.28) * 13);
+            const dNoise = sibilantResonator.process(whiteNoise);
+            vocalSample = vocalSample * Math.min(1.0, (cProg - 0.28) * 2.8) + dNoise * burstEnv * 0.28;
+          }
         } else if (consonantType === 'stop_t') {
           // Alveolar closure and sharp release (た/ち/つ/て/と)
           if (cProg < 0.25) {
@@ -758,6 +792,22 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
             const burstEnv = Math.exp(-(cProg - 0.25) * 14);
             const tNoise = sibilantResonator.process(whiteNoise);
             vocalSample = vocalSample * Math.min(1.0, (cProg - 0.25) * 3.0) + tNoise * burstEnv * 0.50;
+          }
+        } else if (consonantType === 'stop_b') {
+          // Voiced bilabial stop (ば/び/ぶ/べ/ぼ)
+          if (cProg < 0.30) {
+            vocalSample = glottalExcitation * 0.50;
+          } else {
+            const burstEnv = Math.exp(-(cProg - 0.30) * 10);
+            vocalSample = vocalSample * Math.min(1.0, (cProg - 0.30) * 2.6) + burstResonator.process(whiteNoise) * burstEnv * 0.25;
+          }
+        } else if (consonantType === 'stop_p') {
+          // Voiceless bilabial plosive (ぱ/ぴ/ぷ/ぺ/ぽ)
+          if (cProg < 0.22) {
+            vocalSample *= 0.05;
+          } else {
+            const burstEnv = Math.exp(-(cProg - 0.22) * 14);
+            vocalSample = vocalSample * Math.min(1.0, (cProg - 0.22) * 3.0) + burstResonator.process(whiteNoise) * burstEnv * 0.52;
           }
         } else if (consonantType === 'fric_h') {
           // Aspiration noise through vocal tract (は/ひ/ふ/へ/ほ)
@@ -821,7 +871,26 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
     'や', 'ゆ', 'よ',
     'ら', 'り', 'る', 'れ', 'ろ',
     'わ', 'を', 'ん',
-    'a', 'i', 'u', 'e', 'o', 'ka', 'ke', 'ku', 'ko', 'sa', 'shi', 'su', 'se', 'so', 'ta', 'chi', 'tsu', 'te', 'to', 'na', 'ni', 'nu', 'ne', 'no'
+    'が', 'ぎ', 'ぐ', 'げ', 'ご',
+    'ざ', 'じ', 'ず', 'ぜ', 'ぞ',
+    'だ', 'ぢ', 'づ', 'で', 'ど',
+    'ば', 'び', 'ぶ', 'べ', 'ぼ',
+    'ぱ', 'ぴ', 'ぷ', 'ぺ', 'ぽ',
+    'a', 'i', 'u', 'e', 'o',
+    'ka', 'ki', 'ku', 'ke', 'ko',
+    'sa', 'shi', 'su', 'se', 'so',
+    'ta', 'chi', 'tsu', 'te', 'to',
+    'na', 'ni', 'nu', 'ne', 'no',
+    'ha', 'hi', 'fu', 'he', 'ho',
+    'ma', 'mi', 'mu', 'me', 'mo',
+    'ya', 'yu', 'yo',
+    'ra', 'ri', 'ru', 're', 'ro',
+    'wa', 'wo', 'n',
+    'ga', 'gi', 'gu', 'ge', 'go',
+    'za', 'ji', 'zu', 'ze', 'zo',
+    'da', 'di', 'du', 'de', 'do',
+    'ba', 'bi', 'bu', 'be', 'bo',
+    'pa', 'pi', 'pu', 'pe', 'po'
   ];
   const vcvPrefixes = ['- ', 'a ', 'i ', 'u ', 'e ', 'o ', 'n ', '_ ', '_'];
   const otoLines = [];
@@ -836,9 +905,9 @@ function createDefaultVoicebank(targetName, forceRecreate = false) {
     // Overwrite or create clean C4 vocal sample
     fs.writeFileSync(wavPath, createVocalWavBuffer(baseC4Freq, v));
 
-    otoLines.push(`${wavName}=${v},20,120,-50,40,20`);
+    otoLines.push(`${wavName}=${v},20,120,50,40,20`);
     vcvPrefixes.forEach(p => {
-      otoLines.push(`${wavName}=${p}${v},20,120,-50,40,20`);
+      otoLines.push(`${wavName}=${p}${v},20,120,50,40,20`);
     });
   });
 
@@ -891,6 +960,8 @@ const ROMAJI_MAP = {
   'ば': 'ba', 'び': 'bi', 'ぶ': 'bu', 'べ': 'be', 'ぼ': 'bo',
   'ぱ': 'pa', 'ぴ': 'pi', 'ぷ': 'pu', 'ぺ': 'pe', 'ぽ': 'po'
 };
+const ROMAJI_TO_KANA = {};
+Object.entries(ROMAJI_MAP).forEach(([k, v]) => ROMAJI_TO_KANA[v] = k);
 
 // Get trailing vowel for a Japanese lyric or romaji
 function getTrailingVowel(rawLyric) {
@@ -937,6 +1008,108 @@ function getTrailingVowel(rawLyric) {
   }
 
   return null;
+}
+
+// Cache for detected WAV base midi pitch to avoid repeated disk reads / analysis
+const wavBaseMidiCache = new Map();
+
+function detectWavBaseMidi(wavPath, alias = '', filename = '') {
+  const taggedMidi = getMidiFromPitchTag(alias) || getMidiFromPitchTag(filename);
+  if (taggedMidi && taggedMidi !== 60) return taggedMidi;
+
+  if (wavPath && wavBaseMidiCache.has(wavPath)) {
+    return wavBaseMidiCache.get(wavPath);
+  }
+
+  // 1. Try reading .frq file e.g. _あ_wav.frq or _あ.frq
+  if (wavPath) {
+    const frqCandidates = [
+      wavPath.replace(/\.wav$/i, '_wav.frq'),
+      wavPath.replace(/\.wav$/i, '.frq')
+    ];
+
+    for (const frqPath of frqCandidates) {
+      if (fs.existsSync(frqPath)) {
+        try {
+          const buf = fs.readFileSync(frqPath);
+          if (buf.length >= 24 && buf.toString('ascii', 0, 8) === 'FREQ0003') {
+            const avgFreq = buf.readDoubleLE(12);
+            if (avgFreq > 40 && avgFreq < 2000) {
+              const midi = 69 + 12 * Math.log2(avgFreq / 440);
+              const res = Math.round(midi * 10) / 10;
+              wavBaseMidiCache.set(wavPath, res);
+              return res;
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    // 2. Fast autocorrelation pitch detector on PCM samples
+    try {
+      if (fs.existsSync(wavPath)) {
+        const fd = fs.openSync(wavPath, 'r');
+        const headerBuf = Buffer.alloc(44);
+        fs.readSync(fd, headerBuf, 0, 44, 0);
+
+        const numChannels = headerBuf.readUInt16LE(22) || 1;
+        const sampleRate = headerBuf.readUInt32LE(24) || 44100;
+        const bitsPerSample = headerBuf.readUInt16LE(34) || 16;
+        const bytesPerSample = (bitsPerSample / 8) * numChannels;
+
+        const readSamples = Math.min(8192, Math.floor(sampleRate * 0.25));
+        const readBytes = readSamples * bytesPerSample;
+        const dataBuf = Buffer.alloc(readBytes);
+        const startOffset = 44 + Math.floor(sampleRate * 0.1) * bytesPerSample;
+
+        const bytesRead = fs.readSync(fd, dataBuf, 0, readBytes, startOffset);
+        fs.closeSync(fd);
+
+        if (bytesRead >= 2048) {
+          const samples = [];
+          const actualCount = Math.floor(bytesRead / bytesPerSample);
+          for (let i = 0; i < actualCount; i++) {
+            const bPos = i * bytesPerSample;
+            if (bitsPerSample === 16) {
+              samples.push(dataBuf.readInt16LE(bPos) / 32768);
+            } else if (bitsPerSample === 8) {
+              samples.push((dataBuf.readUInt8(bPos) - 128) / 128);
+            }
+          }
+
+          const minLag = Math.max(10, Math.floor(sampleRate / 1000));
+          const maxLag = Math.min(samples.length - 1, Math.floor(sampleRate / 60));
+
+          let bestLag = 0;
+          let bestCorr = -1;
+          for (let lag = minLag; lag <= maxLag; lag++) {
+            let sum = 0;
+            for (let i = 0; i < samples.length - lag; i++) {
+              sum += samples[i] * samples[i + lag];
+            }
+            if (sum > bestCorr) {
+              bestCorr = sum;
+              bestLag = lag;
+            }
+          }
+
+          if (bestLag > 0 && bestCorr > 0.05) {
+            const f0 = sampleRate / bestLag;
+            if (f0 >= 60 && f0 <= 1000) {
+              const midi = 69 + 12 * Math.log2(f0 / 440);
+              const res = Math.round(midi * 10) / 10;
+              wavBaseMidiCache.set(wavPath, res);
+              return res;
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  const fallback = taggedMidi || 60;
+  if (wavPath) wavBaseMidiCache.set(wavPath, fallback);
+  return fallback;
 }
 
 function getMidiFromPitchTag(str) {
@@ -991,15 +1164,24 @@ function ensureDefaultVoicebanks() {
 function findAliasEntry(indexed, rawAlias, prevLyric = null, noteNum = null) {
   if (!indexed || !indexed.aliasMap) return null;
   const aliasMap = indexed.aliasMap;
-  const alias = (rawAlias || '').trim();
-  if (!alias) return null;
+  const rawTrim = (rawAlias || '').trim();
+  if (!rawTrim) return null;
 
-  const cleanPitch = alias.replace(/_?[A-Ga-g][#b]?[0-9]$/, '').replace(/_[0-9]$/, '').trim();
-  const cleanLyric = alias.replace(/^[-aieuon_]\s*/i, '').trim() || alias;
+  // Strict check for rest notes - rests must NEVER resolve to audio samples
+  const REST_PATTERNS = ['r', 'r_', '息', 'br', 'pau', 'sil', '吸', ' ', '', '　', '休', '・'];
+  if (REST_PATTERNS.includes(rawTrim.toLowerCase())) {
+    return null;
+  }
+
+  const alias = rawTrim.normalize('NFC');
+  // Strip pitch/octave suffixes e.g., "_C4", "_A3", "_1", "↑", "↓"
+  const cleanPitch = alias.replace(/_?[A-Ga-g][#b]?[0-9]$/, '').replace(/_[0-9]$/, '').replace(/[↑↓強弱SP]$/, '').trim();
+  // Strip VCV prefixes e.g. "- か", "a か", "_か", "-か"
+  const cleanLyric = (cleanPitch || alias).replace(/^[-aieuon_]\s*/i, '').trim() || alias;
 
   const candidates = [alias];
-  if (cleanLyric !== alias) candidates.push(cleanLyric);
-  if (cleanPitch && cleanPitch !== alias && cleanPitch !== cleanLyric) candidates.push(cleanPitch);
+  if (cleanPitch && !candidates.includes(cleanPitch)) candidates.push(cleanPitch);
+  if (cleanLyric && !candidates.includes(cleanLyric)) candidates.push(cleanLyric);
 
   const kata = KANA_HIRA_TO_KATA[cleanLyric] || KANA_KATA_TO_HIRA[cleanLyric];
   if (kata && !candidates.includes(kata)) candidates.push(kata);
@@ -1007,86 +1189,100 @@ function findAliasEntry(indexed, rawAlias, prevLyric = null, noteNum = null) {
   const rom = ROMAJI_MAP[cleanLyric] || ROMAJI_MAP[KANA_KATA_TO_HIRA[cleanLyric]];
   if (rom && !candidates.includes(rom)) candidates.push(rom);
 
+  const hira = ROMAJI_TO_KANA[cleanLyric.toLowerCase()];
+  if (hira && !candidates.includes(hira)) candidates.push(hira);
+
   const prevVowel = getTrailingVowel(prevLyric);
 
   // Helper to search direct match or pitch-suffixed key in aliasMap
   const matchPrefixOrExact = (prefixStr) => {
-    if (aliasMap.has(prefixStr)) return aliasMap.get(prefixStr);
+    if (!prefixStr) return null;
+    const prefNorm = prefixStr.normalize('NFC');
+    const prefLower = prefNorm.toLowerCase();
 
-    const prefLower = prefixStr.toLowerCase();
-    if (noteNum !== null && noteNum !== undefined) {
-      const midi = Math.round(Number(noteNum));
-      let bestEntry = null;
-      let minDiff = 999;
-      for (const [key, entry] of aliasMap.entries()) {
-        const kLower = key.toLowerCase();
-        if (kLower === prefLower || kLower.startsWith(prefLower + '_') || kLower.startsWith(prefLower + ' ')) {
-          const entryMidi = getMidiFromPitchTag(key) || getMidiFromPitchTag(entry.filename);
-          const diff = Math.abs(midi - entryMidi);
-          if (diff < minDiff) {
-            minDiff = diff;
-            bestEntry = entry;
-          }
-        }
-      }
-      if (bestEntry) return bestEntry;
-    }
+    // 1. Exact match
+    if (aliasMap.has(prefNorm)) return aliasMap.get(prefNorm);
+
+    // 2. Pitch-suffixed search with proximity to requested noteNum
+    const midi = (noteNum !== null && noteNum !== undefined) ? Math.round(Number(noteNum)) : 60;
+    let bestEntry = null;
+    let minDiff = 999;
 
     for (const [key, entry] of aliasMap.entries()) {
-      const kLower = key.toLowerCase();
-      if (kLower.startsWith(prefLower + '_') || kLower.startsWith(prefLower + ' ')) {
-        return entry;
+      const kNorm = key.normalize('NFC');
+      const kLower = kNorm.toLowerCase();
+      
+      let isMatch = false;
+      if (kLower === prefLower) {
+        isMatch = true;
+      } else if (kLower.startsWith(prefLower)) {
+        const remainder = kLower.slice(prefLower.length).trim();
+        if (/^(_|\s)?([a-g][#b]?[0-9]|[↑↓強弱sp]+)$/i.test(remainder)) {
+          isMatch = true;
+        }
+      }
+
+      if (isMatch) {
+        const entryMidi = getMidiFromPitchTag(key) || getMidiFromPitchTag(entry.filename) || 60;
+        const diff = Math.abs(midi - entryMidi);
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestEntry = entry;
+        }
       }
     }
+    if (bestEntry) return bestEntry;
+
     return null;
   };
 
-  for (const cand of candidates) {
-    if (prevVowel) {
+  // 1. If previous note vowel is present, prioritize continuous VCV (連続音)
+  if (prevVowel) {
+    for (const cand of candidates) {
       let entry = matchPrefixOrExact(`${prevVowel} ${cand}`) ||
                   matchPrefixOrExact(`${prevVowel}_${cand}`) ||
                   matchPrefixOrExact(`${prevVowel}${cand}`);
       if (entry) return entry;
-    } else {
-      let entry = matchPrefixOrExact(`- ${cand}`) ||
-                  matchPrefixOrExact(`_${cand}`) ||
-                  matchPrefixOrExact(`-${cand}`);
-      if (entry) return entry;
     }
+  }
 
-    let entry = matchPrefixOrExact(cand);
+  // 2. Initial / Standalone consonant / Plain CV (単独音・語頭音)
+  for (const cand of candidates) {
+    let entry = matchPrefixOrExact(`- ${cand}`) ||
+                matchPrefixOrExact(`_${cand}`) ||
+                matchPrefixOrExact(`-${cand}`) ||
+                matchPrefixOrExact(cand);
     if (entry) return entry;
+  }
 
-    const VCV_PREFIXES = ['- ', 'a ', 'i ', 'u ', 'e ', 'o ', 'n ', '-', '_ ', '_'];
-    for (const p of VCV_PREFIXES) {
-      let vcvEntry = matchPrefixOrExact(`${p}${cand}`);
-      if (vcvEntry) return vcvEntry;
+  // 3. Fallback: Try with vowel prefixes only if candidate itself is a plain vowel
+  if (prevVowel) {
+    for (const cand of candidates) {
+      const VCV_PREFIXES = ['- ', 'a ', 'i ', 'u ', 'e ', 'o ', 'n '];
+      for (const p of VCV_PREFIXES) {
+        let vcvEntry = matchPrefixOrExact(`${p}${cand}`);
+        if (vcvEntry) return vcvEntry;
+      }
     }
   }
 
-  const candLower = cleanLyric.toLowerCase();
-  for (const [key, entry] of aliasMap.entries()) {
-    const kLower = key.toLowerCase();
-    if (kLower === candLower || kLower.endsWith(` ${candLower}`) || kLower.startsWith(`${candLower}_`) || kLower.startsWith(`${candLower} `)) {
-      return entry;
+  // 4. Exact WAV filename match (without extension, strictly full name match)
+  for (const cand of candidates) {
+    const candLower = cand.toLowerCase();
+    if (!candLower) continue;
+    for (const [key, entry] of aliasMap.entries()) {
+      const baseName = path.basename(entry.filename || '').replace(/\.wav$/i, '').toLowerCase().normalize('NFC');
+      if (baseName === candLower || baseName === `_${candLower}` || baseName === `-${candLower}`) {
+        return entry;
+      }
+      // Multi-pitch filename e.g. "あ_C4" or "ka_G4"
+      if (baseName.startsWith(`${candLower}_`) || baseName.startsWith(`${candLower} `)) {
+        return entry;
+      }
     }
   }
 
-  for (const [key, entry] of aliasMap.entries()) {
-    const baseName = path.basename(entry.filename || '').replace(/\.wav$/i, '').toLowerCase();
-    if (baseName === candLower || baseName.includes(candLower)) {
-      return entry;
-    }
-  }
-
-  if (aliasMap.has('あ')) return aliasMap.get('あ');
-  if (aliasMap.has('a')) return aliasMap.get('a');
-  if (aliasMap.has('- あ')) return aliasMap.get('- あ');
-
-  if (indexed.entries && indexed.entries.length > 0) {
-    return indexed.entries[0];
-  }
-
+  // If no legitimate match found for this phoneme, return null cleanly
   return null;
 }
 
@@ -1234,32 +1430,12 @@ app.get('/api/py/voicebank-sample', async (req, res) => {
     wavFile = resolveWavFilePath(path.dirname(wavFile), entry.filename);
   }
 
-  if (!wavFile || !fs.existsSync(wavFile)) {
-    // Search directory recursively for any .wav
-    const findWav = (dir) => {
-      try {
-        const files = fs.readdirSync(dir, { withFileTypes: true });
-        for (const f of files) {
-          const fullP = path.join(dir, f.name);
-          if (f.isDirectory()) {
-            const found = findWav(fullP);
-            if (found) return found;
-          } else if (f.name.toLowerCase().endsWith('.wav')) {
-            return fullP;
-          }
-        }
-      } catch (e) {}
-      return null;
-    };
-    wavFile = findWav(resolvedPath);
-  }
-
-  if (!wavFile || !fs.existsSync(wavFile)) {
+  if (!entry || !wavFile || !fs.existsSync(wavFile)) {
     return res.status(404).json({ success: false, error: `Sample WAV for alias "${alias}" not found` });
   }
 
   if (entry) {
-    const baseMidi = getMidiFromPitchTag(entry.alias) || getMidiFromPitchTag(entry.filename) || 60;
+    const baseMidi = detectWavBaseMidi(wavFile, entry.alias, entry.filename);
     res.setHeader('X-Oto-Left-Blank', String(entry.left_blank || 0));
     res.setHeader('X-Oto-Fixed-Range', String(entry.fixed_range || 0));
     res.setHeader('X-Oto-Right-Blank', String(entry.right_blank || 0));
@@ -1731,9 +1907,10 @@ app.get('/api/py/run-tests', (req, res) => {
 
 // Vite Middleware setup for Web Frontend
 async function setupVite() {
-  if (process.env.NODE_ENV === 'production' && fs.existsSync(path.join(__dirname, 'dist'))) {
+  if (fs.existsSync(path.join(__dirname, 'dist', 'index.html'))) {
     app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (req, res) => {
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) return next();
       res.sendFile(path.join(__dirname, 'dist', 'index.html'));
     });
   } else {
