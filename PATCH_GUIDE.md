@@ -3,6 +3,8 @@
 Synthesizer Vのようなプロツールらしい統一感を出すための第一弾（全体のビジュアル統一）です。
 やったことは3つだけです。
 
+
+
 1. `themes/dark.qss` / `themes/light.qss` を刷新（絵文字ボタンのインライン`setStyleSheet`に
    頼らず、QSS側だけで統一感が出るように再設計）
 2. lucideスタイルのSVGアイコンを19個追加（`assets/icons/dark/`, `assets/icons/light/`）
