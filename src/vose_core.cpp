@@ -1,5 +1,5 @@
 //vose_core.cpp
-
+//合成メインエンジン
 // --- clamp polyfill (for C++14/macOS libc++) ---
 #ifndef HAVE_STD_CLAMP
 template <typename T>
